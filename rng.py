@@ -38,6 +38,8 @@ A: The python RNG is not thread-safe. Furthemore, wrapping it with
    https://github.com/AdaCore/spark2014/tree/master/testsuite/gnatprove/tests/random
 """
 
+from math import ceil, log2
+
 class RNG:
     N = 624
     M = 397
@@ -139,7 +141,7 @@ class RNG:
         return value
 
 
-    def random_int(self, low, high):
+    def random_int32(self, low, high):
         assert isinstance(low, int) and low >= - (2 ** 31)
         assert isinstance(high, int) and high < 2 ** 31
         assert low <= high
@@ -160,8 +162,50 @@ class RNG:
         assert low <= value <= high
         return value
 
+    def random_bits(self, bit_count):
+        assert isinstance(bit_count, int) and bit_count > 0
+
+        remaining = bit_count
+        value = 0
+        while remaining:
+            if remaining >= 32:
+                value = (value << 32) | self.random()
+                remaining -= 32
+            else:
+                value = (value << remaining) | \
+                    self.random_int32(0, 2 ** remaining - 1)
+                break
+
+        return value
+
+    def random_int(self, low, high):
+        assert isinstance(low, int) and low >= 0
+        assert isinstance(high, int) and high > low
+
+        if low >= - (2 ** 31) and  high < 2 ** 31:
+            return self.random_int32(low, high)
+
+        width = int(ceil(log2(high)) + 1)
+
+        if low == - (2 ** width) and high == 2 ** width - 1:
+            x = self.random_bits(width)
+        else:
+            N     = high - low + 1
+            SLOP  = (2 ** width - 1) % (N + 1)
+            while True:
+                x = self.random_bits(width)
+                if SLOP == N or x <= (2 ** width - 1) - SLOP:
+                    break
+            x = x % N
+            assert 0 <= x < N
+
+        value = low + x
+        assert low <= value <= high
+        return value
+
+
     def random_bool(self):
-        return self.random_int(0, 1) == 1
+        return self.random_int32(0, 1) == 1
 
 if __name__ == "__main__":
     import sys

@@ -2,4 +2,4 @@
 *.pyc
 
 # Generated tests
-fptg_*_precisions
+random_fptg
