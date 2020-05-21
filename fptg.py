@@ -29,6 +29,7 @@ import os
 import hashlib
 
 from functools import partial
+from abc import ABCMeta, abstractmethod
 
 try:
     from mpf.floats import *
@@ -41,38 +42,29 @@ except ImportError:
 import smtlib
 from rng import RNG
 
+import attributes
+
 class Seed:
     def __init__(self):
         self.keys = {}
-        self.seq  = 0
 
     def set_key(self, key, value):
-        self.seq = 0
         self.keys[key] = value
 
-    def next(self):
-        self.seq += 1
-
+    def get_rng(self):
         seed_vector = []
         m = hashlib.md5()
         for key in sorted(self.keys):
             m.update(bytes(self.keys[key], encoding="utf-8"))
         seed_vector.append(int(m.hexdigest(), 16))
-        seed_vector.append(self.seq)
-
         rng = RNG(*seed_vector)
         return rng
 
-    def __str__(self):
-        seed_vector = []
+    def get_base_filename(self):
         m = hashlib.md5()
         for key in sorted(self.keys):
             m.update(bytes(self.keys[key], encoding="utf-8"))
-        seed_vector.append(int(m.hexdigest(), 16))
-        seed_vector.append(self.seq)
-
-        return "%u_%u" % (seed_vector[0],
-                          seed_vector[1])
+        return m.hexdigest()
 
 def build_zero(eb, sb, rng, sign):
     rv = MPF(eb, sb)
@@ -181,176 +173,189 @@ fp_test_points = {
     "NaN" : build_nan,
 }
 
+class Vector:
+    pass
 
-def create_test(op, eb, sb, seed, rm=None):
-    if eb == 3 and sb == 5:
-        prec = "float8"
-    elif eb == 5 and sb == 11:
-        prec = "float16"
-    elif eb == 8 and sb == 24:
-        prec = "float32"
-    elif eb == 11 and sb == 53:
-        prec = "float64"
-    elif eb == 15 and sb == 64:
-        prec = "x87_extended"
-    elif eb == 15 and sb == 115:
-        prec = "float128"
-    elif eb == 8 and sb == 8:
-        prec = "bfloat16"
-    elif eb == 8 and sb == 11:
-        prec = "tensorfloat32"
-    else:
-        prec = "fp_%u_%u" % (eb, sb)
+class Float_Vector(Vector):
+    def __init__(self):
+        self.vec = []
 
-    os.makedirs(os.path.join("random_fptg", prec, op),
-                exist_ok=True)
+    def add_item(self, kind):
+        assert kind in fp_test_points
+        self.vec.append(kind)
 
-    if rm:
-        fn = str(seed) + "_" + rm + ".smt2"
-    else:
-        fn = str(seed) + ".smt2"
-    return open(os.path.join("random_fptg", prec, op, fn), "w")
+    def __str__(self):
+        return "Float_Vector<%s>" % ", ".join(self.vec)
 
+    @classmethod
+    def generate(cls, eb, sb, size):
+        assert isinstance(eb, int)
+        assert isinstance(sb, int)
+        assert isinstance(size, int)
+        assert size >= 1
 
-def unary_arithmetic_without_rounding(eb, sb, op):
-    assert isinstance(eb, int)
-    assert isinstance(sb, int)
-    assert op in ("fp.abs", "fp.neg")
+        all_kinds = list(sorted(fp_test_points))
+        kinds = [0] * size
 
-    print("  for %s" % op)
+        def increment(p):
+            if p == size:
+                return False
 
-    seed = Seed()
-    seed.set_key("operation", op)
-
-    for a_kind in sorted(fp_test_points):
-        seed.set_key("a_kind", a_kind)
-        rng = seed.next()
-        a = fp_test_points[a_kind](eb, sb, rng)
-
-        function = {"fp.abs" : lambda x: abs(x),
-                    "fp.neg" : lambda x: -x}[op]
-
-        expecting_unsat = rng.random_bool()
-
-        fd = create_test(op, eb, sb, seed)
-        smtlib.write_header(fd, seed)
-        smtlib.set_logic(fd, "QF_FP")
-        if expecting_unsat:
-            smtlib.set_status(fd, "unsat")
-        else:
-            smtlib.set_status(fd, "sat")
-
-        smtlib.define_fp_const(fd, "a", a)
-
-        result = function(a)
-        smtlib.define_fp_const(fd, "r1", result)
-
-        smtlib.define_const(fd, "r2", result.smtlib_sort(),
-                            "(%s a)" % op)
-
-        smtlib.goal_eq(fd, "r1", "r2", expecting_unsat)
-
-        smtlib.write_footer(fd)
-        fd.close()
-
-def unary_arithmetic_with_rounding(eb, sb, op):
-    assert isinstance(eb, int)
-    assert isinstance(sb, int)
-    assert op in ("fp.sqrt", "fp.roundToIntegral")
-
-    print("  for %s" % op)
-
-    seed = Seed()
-    seed.set_key("operation", op)
-
-    for a_kind in sorted(fp_test_points):
-        seed.set_key("a_kind", a_kind)
-        rng = seed.next()
-        a = fp_test_points[a_kind](eb, sb, rng)
-
-        for rm in MPF.ROUNDING_MODES:
-            seed.set_key("rounding", rm)
-            rng = seed.next()
-
-            function = {"fp.sqrt"            : fp_sqrt,
-                        "fp.roundToIntegral" : fp_roundToIntegral}[op]
-
-            expecting_unsat = rng.random_bool()
-
-            fd = create_test(op, eb, sb, seed)
-            smtlib.write_header(fd, seed)
-            smtlib.set_logic(fd, "QF_FP")
-            if expecting_unsat:
-                smtlib.set_status(fd, "unsat")
+            kinds[p] += 1
+            if kinds[p] == len(all_kinds):
+                kinds[p] = 0
+                return increment(p + 1)
             else:
-                smtlib.set_status(fd, "sat")
+                return True
 
-            smtlib.define_fp_const(fd, "a", a)
+        while True:
+            vec = Float_Vector()
+            for k in kinds:
+                vec.add_item(all_kinds[k])
+            yield vec
+            if not increment(0):
+                return
 
-            result = function(rm, a)
-            smtlib.define_fp_const(fd, "r1", result)
+class Float_Vector_With_RM(Float_Vector):
+    def __init__(self, rm):
+        super().__init__()
 
-            smtlib.define_const(fd, "r2", result.smtlib_sort(),
-                                "(%s %s a)" % (op, rm))
+        assert rm in MPF.ROUNDING_MODES
+        self.rm = rm
 
-            smtlib.goal_eq(fd, "r1", "r2", expecting_unsat)
+    def __str__(self):
+        return "Float_Vector_With_RM<%s,%s>" % (self.rm,
+                                                ", ".join(self.vec))
 
-            smtlib.write_footer(fd)
-            fd.close()
+    @classmethod
+    def generate(cls, eb, sb, size):
+        assert isinstance(eb, int)
+        assert isinstance(sb, int)
+        assert isinstance(size, int)
+        assert size >= 1
 
+        for fv in Float_Vector.generate(eb, sb, size):
+            for rm in MPF.ROUNDING_MODES:
+                vec = Float_Vector_With_RM(rm)
+                vec.vec = fv.vec
+                yield vec
 
-def binary_arithmetic_with_rounding(eb, sb, op):
+def precision_name(eb, sb):
     assert isinstance(eb, int)
     assert isinstance(sb, int)
-    assert op in ("fp.add", "fp.sub", "fp.mul", "fp.div")
 
-    print("  for %s" % op)
+    names = {3:  { 5  : "float8"},
+             5:  {11  : "float16"},
+             8:  { 8  : "bfloat16",
+                  11  : "tensorfloat32",
+                  24  : "float32"},
+             11: {53  : "float64"},
+             15: {64  : "x87_extended",
+                  115 : "float128"}}
+    if eb in names:
+        if sb in names[eb]:
+            return names[eb][sb]
+
+    return "fp_%u_%u" % (eb, sb)
+
+
+def basic_test(eb, sb, fp_op):
+    prefix = os.path.join("random_fptg",
+                          precision_name(eb, sb),
+                          fp_op)
+    print("Generating %s" % prefix)
+
+    attr = attributes.get_simple(fp_op)
+
+    generator_class = (Float_Vector_With_RM
+                       if attr.rounding
+                       else Float_Vector)
 
     seed = Seed()
-    seed.set_key("operation", op)
+    seed.set_key("operation", fp_op)
 
-    for a_kind in sorted(fp_test_points):
-        seed.set_key("a_kind", a_kind)
-        rng = seed.next()
-        a = fp_test_points[a_kind](eb, sb, rng)
+    for vec in generator_class.generate(eb, sb, attr.arity):
+        # Setup seed
+        for i in range(attr.arity):
+            seed.set_key("input_kind_%u" % (i + 1),
+                         vec.vec[i])
+        if attr.rounding:
+            seed.set_key("rounding_mode", vec.rm)
 
-        for b_kind in sorted(fp_test_points):
-            seed.set_key("b_kind", b_kind)
-            rng = seed.next()
-            b = fp_test_points[b_kind](eb, sb, rng)
+        # Get filename and rng based on seed
+        filename = seed.get_base_filename() + ".smt2"
+        rng      = seed.get_rng()
 
-            for rm in MPF.ROUNDING_MODES:
-                seed.set_key("rounding", rm)
-                rng = seed.next()
+        # Build testcase
+        os.makedirs(prefix, exist_ok=True)
+        with open(os.path.join(prefix, filename), "w") as fd:
+            # Create inputs
+            inputs = []
+            for input_id, input_kind in enumerate(vec.vec, 1):
+                inputs.append(("input_%u" % input_id,
+                               fp_test_points[input_kind](eb, sb, rng)))
 
-                function = {"fp.add" : fp_add,
-                            "fp.sub" : fp_sub,
-                            "fp.mul" : fp_mul,
-                            "fp.div" : fp_div}[op]
+            # Decide if this test should be sat or unsat
+            expect_unsat = rng.random_bool()
 
-                expecting_unsat = rng.random_bool()
-
-                fd = create_test(op, eb, sb, seed)
-                smtlib.write_header(fd, seed)
-                smtlib.set_logic(fd, "QF_FP")
-                if expecting_unsat:
-                    smtlib.set_status(fd, "unsat")
+            # Compute result
+            args = []
+            if attr.rounding:
+                args.append(vec.rm)
+            args += [input_value for _, input_value in inputs]
+            try:
+                expected_result = attr.function(*args)
+                unspecified = False
+            except Unspecified:
+                assert fp_op in ("fp.min", "fp.max")
+                if rng.random_bool():
+                    expected_result = inputs[0][1]
                 else:
-                    smtlib.set_status(fd, "sat")
+                    expected_result = inputs[1][1]
+                    expect_unsat = True
+                    unspecified = True
 
-                smtlib.define_fp_const(fd, "a", a)
-                smtlib.define_fp_const(fd, "b", b)
+            # Create smtlib output for this test
+            smtlib.write_header(fd, seed)
+            if unspecified:
+                smtlib.set_status(fd, "sat")
+                smtlib.comment(fd,
+                               "this result exploits unspecified behaviour")
+            else:
+                smtlib.set_status(fd, "unsat" if expect_unsat else "sat")
 
-                result = function(rm, a, b)
-                smtlib.define_fp_const(fd, "r1", result)
+            smtlib.set_logic(fd, "QF_FP")
 
-                smtlib.define_const(fd, "r2", result.smtlib_sort(),
-                                    "(%s %s a b)" % (op, rm))
+            # Emit inputs
+            for input_name, input_value in inputs:
+                smtlib.define_fp_const(fd, input_name, input_value)
 
-                smtlib.goal_eq(fd, "r1", "r2", expecting_unsat)
+            # Emit expected result
+            if attr.returns == "bool":
+                assert isinstance(expected_result, bool)
+                smtlib.define_const(fd, "expected_result", "Bool",
+                                    str(expected_result).lower())
+            else:
+                assert isinstance(expected_result, MPF)
+                smtlib.define_fp_const(fd, "expected_result", expected_result)
 
-                smtlib.write_footer(fd)
-                fd.close()
+            # Emit caluclation
+            result_sort = (expected_result.smtlib_sort()
+                           if attr.returns == "float"
+                           else "Bool")
+            args = []
+            if attr.rounding:
+                args.append(vec.rm)
+            args += [input_name for input_name, _ in inputs]
+            smtlib.define_const(fd, "computed_result", result_sort,
+                                "(%s %s)" % (fp_op, " ".join(args)))
+
+            # Emit goal
+            smtlib.goal_eq(fd, "expected_result", "computed_result",
+                           expect_unsat)
+
+            # Finish
+            smtlib.write_footer(fd)
 
 
 def main():
@@ -358,28 +363,8 @@ def main():
 
     options = ap.parse_args()
 
-    formats = []
-    formats.append((3, 5))    # float8
-    # formats.append((5, 11))   # float16
-    # formats.append((8, 8))    # bfloat16
-    # formats.append((8, 11))   # tensorfloat32
-    # formats.append((8, 24))   # float32
-    # formats.append((11, 53))  # float64
-    # formats.append((15, 64))  # x87_extended
-    # formats.append((15, 115)) # float128
-
-    for eb, sb in formats:
-        print("Generating tests for precision %u %u" % (eb, sb))
-        unary_arithmetic_without_rounding(eb, sb, "fp.abs")
-        unary_arithmetic_without_rounding(eb, sb, "fp.neg")
-
-        unary_arithmetic_with_rounding(eb, sb, "fp.roundToIntegral")
-        unary_arithmetic_with_rounding(eb, sb, "fp.sqrt")
-
-        binary_arithmetic_with_rounding(eb, sb, "fp.add")
-        binary_arithmetic_with_rounding(eb, sb, "fp.sub")
-        binary_arithmetic_with_rounding(eb, sb, "fp.mul")
-        binary_arithmetic_with_rounding(eb, sb, "fp.div")
+    for fp_op in attributes.op_attr:
+        basic_test(3, 5, fp_op)
 
 if __name__ == "__main__":
     main()
