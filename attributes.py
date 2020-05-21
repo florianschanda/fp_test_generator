@@ -65,7 +65,7 @@ op_attr = {
     "fp.geq"  : FP_Attributes(2, lambda x, y: x >= y,
                               rounding=False,
                               returns="bool"),
-    "fp.ge"  : FP_Attributes(2, lambda x, y: x > y,
+    "fp.gt"  : FP_Attributes(2, lambda x, y: x > y,
                              rounding=False,
                              returns="bool"),
     "fp.eq"  : FP_Attributes(2, lambda x, y: x == y,
