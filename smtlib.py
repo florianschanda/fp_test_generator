@@ -61,7 +61,9 @@ def define_fp_const(fd, name, value):
                                             value.smtlib_sort(),
                                             value.smtlib_literal()))
     if value.isFinite():
-        fd.write(";; should be %s\n" % value.to_python_string())
+        str_val = value.to_python_string()
+        if len(str_val) < 20:
+            fd.write(";; should be %s\n" % str_val)
     fd.write(";;   isZero      : %s\n" % value.isZero())
     fd.write(";;   isSubnormal : %s\n" % value.isSubnormal())
     fd.write(";;   isNormal    : %s\n" % value.isNormal())

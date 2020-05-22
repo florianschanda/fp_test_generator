@@ -136,6 +136,16 @@ def build_nan(eb, sb, rng):
             rng.random_int(1, 2 ** rv.t - 1))
     return rv
 
+precision_names = {3:  { 5  : "float8"},
+                   5:  {11  : "float16"},
+                   8:  { 8  : "bfloat16",
+                        11  : "tensorfloat32",
+                        24  : "float32"},
+                   11: {53  : "float64"},
+                   15: {64  : "x87_extended",
+                        115 : "float128"}
+}
+
 fp_test_points = {
     # Zeros
     "+0" : partial(build_zero, sign=0),
@@ -172,6 +182,32 @@ fp_test_points = {
     # NaN
     "NaN" : build_nan,
 }
+
+def specific_precision(eb, sb, rng):
+    return (eb, sb)
+
+def random_ordered_precision(rng):
+    eb = rng.random_int(3, 10)
+    sb = rng.random_int(eb + 1, eb + 7)
+    return (eb, sb)
+
+def random_symmetrical_precision(rng):
+    eb = rng.random_int(3, 7)
+    return (eb, eb)
+
+def random_weird_precision(rng):
+    eb = rng.random_int(5, 12)
+    sb = rng.random_int(3, eb - 1)
+    return (eb, sb)
+
+precision_test_points = {
+    precision_names[eb][sb]: partial(specific_precision, eb, sb)
+    for eb in precision_names
+    for sb in precision_names[eb]
+}
+precision_test_points["random_ordered"] = random_ordered_precision
+precision_test_points["random_symmetrical"] = random_symmetrical_precision
+precision_test_points["random_weird"] = random_weird_precision
 
 class Vector:
     pass
@@ -240,21 +276,52 @@ class Float_Vector_With_RM(Float_Vector):
                 vec.vec = fv.vec
                 yield vec
 
+class Precision_Vector(Vector):
+    def __init__(self):
+        self.vec = []
+
+    def add_item(self, kind):
+        assert kind in precision_test_points
+        self.vec.append(kind)
+
+    def __str__(self):
+        return "Precision_Vector<%s>" % ", ".join(self.vec)
+
+    @classmethod
+    def generate(cls, size):
+        assert isinstance(size, int)
+        assert size >= 1
+
+        all_kinds = list(sorted(precision_test_points))
+        kinds = [0] * size
+
+        def increment(p):
+            if p == size:
+                return False
+
+            kinds[p] += 1
+            if kinds[p] == len(all_kinds):
+                kinds[p] = 0
+                return increment(p + 1)
+            else:
+                return True
+
+        while True:
+            vec = Precision_Vector()
+            for k in kinds:
+                vec.add_item(all_kinds[k])
+            yield vec
+            if not increment(0):
+                return
+
+
 def precision_name(eb, sb):
     assert isinstance(eb, int)
     assert isinstance(sb, int)
 
-    names = {3:  { 5  : "float8"},
-             5:  {11  : "float16"},
-             8:  { 8  : "bfloat16",
-                  11  : "tensorfloat32",
-                  24  : "float32"},
-             11: {53  : "float64"},
-             15: {64  : "x87_extended",
-                  115 : "float128"}}
-    if eb in names:
-        if sb in names[eb]:
-            return names[eb][sb]
+    if eb in precision_names:
+        if sb in precision_names[eb]:
+            return precision_names[eb][sb]
 
     return "fp_%u_%u" % (eb, sb)
 
@@ -357,14 +424,106 @@ def basic_test(eb, sb, fp_op):
             # Finish
             smtlib.write_footer(fd)
 
+def float_to_float_test():
+    prefix = os.path.join("random_fptg",
+                          "float_to_float")
+    print("Generating %s" % prefix)
+
+    seed = Seed()
+    seed.set_key("operation", "float_to_float")
+
+    for p_vec in Precision_Vector.generate(size=2):
+        # Setup seed
+        seed.set_key("precision_source", p_vec.vec[0])
+        seed.set_key("precision_target", p_vec.vec[1])
+        print("  %s -> %s" % tuple(p_vec.vec))
+
+        rng = seed.get_rng()
+
+        p_source = precision_test_points[p_vec.vec[0]](rng)
+        p_target = precision_test_points[p_vec.vec[1]](rng)
+
+        for i_vec in Float_Vector_With_RM.generate(p_source[0], p_source[1],
+                                                   size=1):
+            seed.set_key("input_kind", i_vec.vec[0])
+            seed.set_key("rounding_mode", i_vec.rm)
+
+            # Get filename and rng based on seed
+            filename = "%s_to_%s_%s_%s.smt2" % (p_vec.vec[0],
+                                                p_vec.vec[1],
+                                                i_vec.rm,
+                                                seed.get_base_filename()[:4])
+            rng = seed.get_rng()
+
+            # Build testcase
+            os.makedirs(prefix, exist_ok=True)
+            with open(os.path.join(prefix, filename), "w") as fd:
+                # Create input
+                input_value = fp_test_points[i_vec.vec[0]](p_source[0],
+                                                           p_source[1],
+                                                           rng)
+
+                # Decide if this test should be sat or unsat
+                expect_unsat = rng.random_bool()
+
+                # Compute result
+                expected_result = fp_from_float(p_target[0], p_target[1],
+                                                i_vec.rm,
+                                                input_value)
+
+                # Create smtlib output for this test
+                smtlib.write_header(fd, seed)
+                smtlib.set_status(fd, "unsat" if expect_unsat else "sat")
+
+                smtlib.set_logic(fd, "QF_FP")
+
+                # Emit input
+                smtlib.define_fp_const(fd, "potato", input_value)
+
+                # Emit expected result
+                smtlib.define_fp_const(fd, "expected_result", expected_result)
+
+                # Emit caluclation
+                smtlib.define_const(fd, "computed_result",
+                                    expected_result.smtlib_sort(),
+                                    "((_ to_fp %u %u) %s potato)" %
+                                    (p_target[0], p_target[1],
+                                     i_vec.rm))
+
+                # Emit goal
+                smtlib.goal_eq(fd, "expected_result", "computed_result",
+                               expect_unsat)
+
+                # Finish
+                smtlib.write_footer(fd)
+
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--reduced-fp-points",
+                    action="store_true",
+                    help="create way fewer testcases in each category")
 
     options = ap.parse_args()
 
+    # Process options
+
+    if options.reduced_fp_points:
+        reduced_set = set(["+0", "-0",
+                           "+rnd_subnormal", "-rnd_subnormal",
+                           "+rnd_normal_small", "-rnd_normal_small",
+                           "+inf", "-inf",
+                           "NaN"])
+
+        for name in set(fp_test_points) - reduced_set:
+            del fp_test_points[name]
+
+    # Build tests
+
     for fp_op in attributes.op_attr:
         basic_test(3, 5, fp_op)
+
+    float_to_float_test()
 
 if __name__ == "__main__":
     main()

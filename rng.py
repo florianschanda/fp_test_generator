@@ -180,10 +180,12 @@ class RNG:
 
     def random_int(self, low, high):
         assert isinstance(low, int) and low >= 0
-        assert isinstance(high, int) and high > low
+        assert isinstance(high, int) and high >= low
 
         if low >= - (2 ** 31) and  high < 2 ** 31:
             return self.random_int32(low, high)
+        elif low == high:
+            return low
 
         width = int(ceil(log2(high)) + 1)
 
