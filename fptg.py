@@ -36,13 +36,25 @@ try:
 except ImportError:
     print("This tool requires the python package PyMPF to be installed.")
     print("You can do this via pip3:")
+    print("  $ apt-get install python3-pip")
     print("  $ pip3 install PyMPF")
     sys.exit(1)
 
-import smtlib
+try:
+    import gmpy2
+except ImportError:
+    print("This tool requires the python package gmpy2 to be installed.")
+    print("You can do this via pip3:")
+    print("  $ apt-get install libmpfr-dev libmpc-dev")
+    print("  $ pip3 install gmpy2")
+    sys.exit(1)
+
 from rng import RNG
 
+import smtlib
 import attributes
+import validation
+import validation_mpfr
 
 class Seed:
     def __init__(self):
@@ -327,10 +339,8 @@ def precision_name(eb, sb):
 
 
 def basic_test(eb, sb, fp_op):
-    prefix = os.path.join("random_fptg",
-                          precision_name(eb, sb),
-                          fp_op)
-    print("Generating %s" % prefix)
+    print("Generating %s (%s)" % (fp_op,
+                                  precision_name(eb, sb)))
 
     attr = attributes.get_simple(fp_op)
 
@@ -349,41 +359,76 @@ def basic_test(eb, sb, fp_op):
         if attr.rounding:
             seed.set_key("rounding_mode", vec.rm)
 
-        # Get filename and rng based on seed
-        filename = seed.get_base_filename() + ".smt2"
-        rng      = seed.get_rng()
+        # Get rng based on seed
+        rng = seed.get_rng()
+
+        # Create inputs
+        inputs = []
+        for input_id, input_kind in enumerate(vec.vec, 1):
+            inputs.append(("input_%u" % input_id,
+                           fp_test_points[input_kind](eb, sb, rng)))
+
+        # Decide if this test should be sat or unsat
+        expect_unsat = rng.random_bool()
+
+        # Compute result
+        args = []
+        if attr.rounding:
+            args.append(vec.rm)
+        args += [input_value for _, input_value in inputs]
+        try:
+            expected_result = attr.function(*args)
+            unspecified = False
+        except Unspecified:
+            assert fp_op in ("fp.min", "fp.max")
+            unspecified = True
+            if rng.random_bool():
+                expected_result = inputs[0][1]
+            else:
+                expected_result = inputs[1][1]
+                expect_unsat = True
+
+        # Validate
+        validation_ok = True
+        validators = set(["PyMPF"])
+        if not unspecified:
+            if attr.mpfr_function is not None:
+                try:
+                    mpfr_result = attr.mpfr_function(*args)
+                    if smtlib_eq(mpfr_result, expected_result):
+                        validators.add(validation_mpfr.NAME)
+                    else:
+                        print("Validation failed for %s:" % fp_op)
+                        for arg in args:
+                            print("  ", arg)
+                        print("PyMPF result: %s" % expected_result)
+                        print("MPFR result: %s" % mpfr_result)
+                        validation_ok = False
+
+                except validation.Unsupported:
+                    pass
+
+        # Decide on filename
+        if not validation_ok:
+            prefix = "random_fptg_controversial"
+        elif len(validators) > 1:
+            prefix = "random_fptg_validated"
+        else:
+            prefix = "random_fptg"
+        prefix = os.path.join(prefix,
+                              precision_name(eb, sb),
+                              fp_op)
+        if attr.rounding:
+            filename = "%s_%s.smt2" % (vec.rm,
+                                       seed.get_base_filename())
+        else:
+            filename = "%s.smt2" % seed.get_base_filename()
 
         # Build testcase
         os.makedirs(prefix, exist_ok=True)
         with open(os.path.join(prefix, filename), "w") as fd:
-            # Create inputs
-            inputs = []
-            for input_id, input_kind in enumerate(vec.vec, 1):
-                inputs.append(("input_%u" % input_id,
-                               fp_test_points[input_kind](eb, sb, rng)))
-
-            # Decide if this test should be sat or unsat
-            expect_unsat = rng.random_bool()
-
-            # Compute result
-            args = []
-            if attr.rounding:
-                args.append(vec.rm)
-            args += [input_value for _, input_value in inputs]
-            try:
-                expected_result = attr.function(*args)
-                unspecified = False
-            except Unspecified:
-                assert fp_op in ("fp.min", "fp.max")
-                if rng.random_bool():
-                    expected_result = inputs[0][1]
-                else:
-                    expected_result = inputs[1][1]
-                    expect_unsat = True
-                    unspecified = True
-
             # Create smtlib output for this test
-            smtlib.write_header(fd, seed)
+            smtlib.write_header(fd, seed, validators)
             if unspecified:
                 smtlib.set_status(fd, "sat")
                 smtlib.comment(fd,
@@ -425,18 +470,19 @@ def basic_test(eb, sb, fp_op):
             smtlib.write_footer(fd)
 
 def float_to_float_test():
-    prefix = os.path.join("random_fptg",
-                          "float_to_float")
-    print("Generating %s" % prefix)
+    print("Generating float -> float tests")
 
     seed = Seed()
     seed.set_key("operation", "float_to_float")
 
+    old_tgt = None
     for p_vec in Precision_Vector.generate(size=2):
         # Setup seed
         seed.set_key("precision_source", p_vec.vec[0])
         seed.set_key("precision_target", p_vec.vec[1])
-        print("  %s -> %s" % tuple(p_vec.vec))
+        if old_tgt != p_vec.vec[1]:
+            print("  to %s" % p_vec.vec[1])
+            old_tgt = p_vec.vec[1]
 
         rng = seed.get_rng()
 
@@ -448,31 +494,37 @@ def float_to_float_test():
             seed.set_key("input_kind", i_vec.vec[0])
             seed.set_key("rounding_mode", i_vec.rm)
 
-            # Get filename and rng based on seed
-            filename = "%s_to_%s_%s_%s.smt2" % (p_vec.vec[0],
-                                                p_vec.vec[1],
-                                                i_vec.rm,
-                                                seed.get_base_filename()[:4])
+            # Get RNG based on seed
             rng = seed.get_rng()
+
+            # Create input
+            input_value = fp_test_points[i_vec.vec[0]](p_source[0],
+                                                       p_source[1],
+                                                       rng)
+
+            # Decide if this test should be sat or unsat
+            expect_unsat = rng.random_bool()
+
+            # Compute result
+            expected_result = fp_from_float(p_target[0], p_target[1],
+                                            i_vec.rm,
+                                            input_value)
+            validators = set(["PyMPF"])
+
+            # Decide on filename
+            prefix = os.path.join("random_fptg",
+                                  p_vec.vec[1],
+                                  "to_fp")
+
+            filename = "to_%s_%s_%s.smt2" % (p_vec.vec[1],
+                                             i_vec.rm,
+                                             seed.get_base_filename()[:4])
 
             # Build testcase
             os.makedirs(prefix, exist_ok=True)
             with open(os.path.join(prefix, filename), "w") as fd:
-                # Create input
-                input_value = fp_test_points[i_vec.vec[0]](p_source[0],
-                                                           p_source[1],
-                                                           rng)
-
-                # Decide if this test should be sat or unsat
-                expect_unsat = rng.random_bool()
-
-                # Compute result
-                expected_result = fp_from_float(p_target[0], p_target[1],
-                                                i_vec.rm,
-                                                input_value)
-
                 # Create smtlib output for this test
-                smtlib.write_header(fd, seed)
+                smtlib.write_header(fd, seed, validators)
                 smtlib.set_status(fd, "unsat" if expect_unsat else "sat")
 
                 smtlib.set_logic(fd, "QF_FP")

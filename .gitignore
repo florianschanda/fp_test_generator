@@ -2,4 +2,4 @@
 *.pyc
 
 # Generated tests
-random_fptg
+random_fptg*

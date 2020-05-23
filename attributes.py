@@ -24,37 +24,63 @@
 ##############################################################################
 
 import mpf.floats
+import validation_mpfr
 
 class FP_Attributes:
-    def __init__(self, arity, function, rounding=True, returns="float"):
+    def __init__(self, arity, function, mpfr_fn=None, rounding=True, returns="float"):
         assert isinstance(arity, int)
         assert arity >= 1
         assert callable(function)
         assert isinstance(rounding, bool)
         assert returns in ("bool", "float")
 
-        self.arity    = arity
-        self.function = function
-        self.rounding = rounding
-        self.returns  = returns
+        self.arity         = arity
+        self.function      = function
+        self.mpfr_function = mpfr_fn
+        self.rounding      = rounding
+        self.returns       = returns
 
 op_attr = {
-    "fp.abs"  : FP_Attributes(1, lambda x: abs(x),
+    "fp.abs"  : FP_Attributes(1,
+                              lambda x: abs(x),
+                              validation_mpfr.mpfr_abs,
                               rounding=False),
-    "fp.neg"  : FP_Attributes(1, lambda x: -x,
+    "fp.neg"  : FP_Attributes(1,
+                              lambda x: -x,
+                              validation_mpfr.mpfr_neg,
                               rounding=False),
-    "fp.add"  : FP_Attributes(2, mpf.floats.fp_add),
-    "fp.sub"  : FP_Attributes(2, mpf.floats.fp_sub),
-    "fp.mul"  : FP_Attributes(2, mpf.floats.fp_mul),
-    "fp.div"  : FP_Attributes(2, mpf.floats.fp_div),
-    "fp.fma"  : FP_Attributes(3, mpf.floats.fp_fma),
-    "fp.sqrt" : FP_Attributes(1, mpf.floats.fp_sqrt),
-    "fp.rem"  : FP_Attributes(2, mpf.floats.fp_rem,
+    "fp.add"  : FP_Attributes(2,
+                              mpf.floats.fp_add,
+                              validation_mpfr.mpfr_add),
+    "fp.sub"  : FP_Attributes(2,
+                              mpf.floats.fp_sub,
+                              validation_mpfr.mpfr_sub),
+    "fp.mul"  : FP_Attributes(2,
+                              mpf.floats.fp_mul,
+                              validation_mpfr.mpfr_mul),
+    "fp.div"  : FP_Attributes(2,
+                              mpf.floats.fp_div,
+                              validation_mpfr.mpfr_div),
+    "fp.fma"  : FP_Attributes(3,
+                              mpf.floats.fp_fma,
+                              validation_mpfr.mpfr_fma),
+    "fp.sqrt" : FP_Attributes(1,
+                              mpf.floats.fp_sqrt,
+                              validation_mpfr.mpfr_sqrt),
+    "fp.rem"  : FP_Attributes(2,
+                              mpf.floats.fp_rem,
+                              validation_mpfr.mpfr_rem,
                               rounding=False),
-    "fp.roundToIntegral" : FP_Attributes(1, mpf.floats.fp_roundToIntegral),
-    "fp.min"  : FP_Attributes(2, mpf.floats.fp_min,
+    "fp.roundToIntegral" : FP_Attributes(1,
+                                         mpf.floats.fp_roundToIntegral,
+                                         validation_mpfr.mpfr_roundToIntegral),
+    "fp.min"  : FP_Attributes(2,
+                              mpf.floats.fp_min,
+                              validation_mpfr.mpfr_min,
                               rounding=False),
-    "fp.max"  : FP_Attributes(2, mpf.floats.fp_max,
+    "fp.max"  : FP_Attributes(2,
+                              mpf.floats.fp_max,
+                              validation_mpfr.mpfr_max,
                               rounding=False),
     "fp.leq"  : FP_Attributes(2, lambda x, y: x <= y,
                               rounding=False,
