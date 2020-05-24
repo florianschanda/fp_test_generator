@@ -25,9 +25,10 @@
 
 import mpf.floats
 import validation_mpfr
+import validation_host
 
 class FP_Attributes:
-    def __init__(self, arity, function, mpfr_fn=None, rounding=True, returns="float"):
+    def __init__(self, arity, function, mpfr_fn=None, host_fn=None, rounding=True, returns="float"):
         assert isinstance(arity, int)
         assert arity >= 1
         assert callable(function)
@@ -37,6 +38,7 @@ class FP_Attributes:
         self.arity         = arity
         self.function      = function
         self.mpfr_function = mpfr_fn
+        self.host_function = host_fn
         self.rounding      = rounding
         self.returns       = returns
 
@@ -44,43 +46,55 @@ op_attr = {
     "fp.abs"  : FP_Attributes(1,
                               lambda x: abs(x),
                               validation_mpfr.mpfr_abs,
+                              validation_host.host_abs,
                               rounding=False),
     "fp.neg"  : FP_Attributes(1,
                               lambda x: -x,
                               validation_mpfr.mpfr_neg,
+                              validation_host.host_neg,
                               rounding=False),
     "fp.add"  : FP_Attributes(2,
                               mpf.floats.fp_add,
-                              validation_mpfr.mpfr_add),
+                              validation_mpfr.mpfr_add,
+                              validation_host.host_add),
     "fp.sub"  : FP_Attributes(2,
                               mpf.floats.fp_sub,
-                              validation_mpfr.mpfr_sub),
+                              validation_mpfr.mpfr_sub,
+                              validation_host.host_sub),
     "fp.mul"  : FP_Attributes(2,
                               mpf.floats.fp_mul,
-                              validation_mpfr.mpfr_mul),
+                              validation_mpfr.mpfr_mul,
+                              validation_host.host_mul),
     "fp.div"  : FP_Attributes(2,
                               mpf.floats.fp_div,
-                              validation_mpfr.mpfr_div),
+                              validation_mpfr.mpfr_div,
+                              validation_host.host_div),
     "fp.fma"  : FP_Attributes(3,
                               mpf.floats.fp_fma,
-                              validation_mpfr.mpfr_fma),
+                              validation_mpfr.mpfr_fma,
+                              validation_host.host_fma),
     "fp.sqrt" : FP_Attributes(1,
                               mpf.floats.fp_sqrt,
-                              validation_mpfr.mpfr_sqrt),
+                              validation_mpfr.mpfr_sqrt,
+                              validation_host.host_sqrt),
     "fp.rem"  : FP_Attributes(2,
                               mpf.floats.fp_rem,
                               validation_mpfr.mpfr_rem,
+                              validation_host.host_rem,
                               rounding=False),
     "fp.roundToIntegral" : FP_Attributes(1,
                                          mpf.floats.fp_roundToIntegral,
-                                         validation_mpfr.mpfr_roundToIntegral),
+                                         validation_mpfr.mpfr_roundToIntegral,
+                                         validation_host.host_roundToIntegral),
     "fp.min"  : FP_Attributes(2,
                               mpf.floats.fp_min,
                               validation_mpfr.mpfr_min,
+                              validation_host.host_min,
                               rounding=False),
     "fp.max"  : FP_Attributes(2,
                               mpf.floats.fp_max,
                               validation_mpfr.mpfr_max,
+                              validation_host.host_max,
                               rounding=False),
     "fp.leq"  : FP_Attributes(2, lambda x, y: x <= y,
                               rounding=False,

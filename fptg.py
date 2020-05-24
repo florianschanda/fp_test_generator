@@ -55,6 +55,7 @@ import smtlib
 import attributes
 import validation
 import validation_mpfr
+import validation_host
 
 class Seed:
     def __init__(self):
@@ -408,6 +409,25 @@ def basic_test(eb, sb, fp_op):
                 except validation.Unsupported:
                     pass
 
+            if attr.host_function is not None:
+                try:
+                    host_result = attr.host_function(*args)
+                    if smtlib_eq(host_result, expected_result):
+                        validators.add(validation_host.NAME)
+                    else:
+                        print("Validation failed for %s:" % fp_op)
+                        for arg in args:
+                            if isinstance(arg, MPF):
+                                print("  ", arg, arg.bv)
+                            else:
+                                print(arg)
+                        print("PyMPF result: %s" % expected_result)
+                        print("Host result: %s" % host_result)
+                        validation_ok = False
+
+                except validation.Unsupported:
+                    pass
+
         # Decide on filename
         if not validation_ok:
             prefix = "random_fptg_controversial"
@@ -573,9 +593,9 @@ def main():
     # Build tests
 
     for fp_op in attributes.op_attr:
-        basic_test(3, 5, fp_op)
+        basic_test(8, 24, fp_op)
 
-    float_to_float_test()
+    # float_to_float_test()
 
 if __name__ == "__main__":
     main()

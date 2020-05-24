@@ -3,3 +3,7 @@
 
 # Generated tests
 random_fptg*
+
+# Generated artefacts
+host_validation/*.val*
+host_validation/*.o
