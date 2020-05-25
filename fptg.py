@@ -430,12 +430,13 @@ def basic_test(eb, sb, fp_op):
 
         # Decide on filename
         if not validation_ok:
-            prefix = "random_fptg_controversial"
+            prefix = "controversial"
         elif len(validators) > 1:
-            prefix = "random_fptg_validated"
+            prefix = "tests_validated"
         else:
-            prefix = "random_fptg"
-        prefix = os.path.join(prefix,
+            prefix = "tests"
+        prefix = os.path.join("fptg_testsuite",
+                              prefix,
                               precision_name(eb, sb),
                               fp_op)
         if attr.rounding:
@@ -532,7 +533,8 @@ def float_to_float_test():
             validators = set(["PyMPF"])
 
             # Decide on filename
-            prefix = os.path.join("random_fptg",
+            prefix = os.path.join("fptg_testsuite",
+                                  "tests",
                                   p_vec.vec[1],
                                   "to_fp")
 
@@ -593,9 +595,11 @@ def main():
     # Build tests
 
     for fp_op in attributes.op_attr:
-        basic_test(8, 24, fp_op)
+        for eb in precision_names:
+            for sb in precision_names[eb]:
+                basic_test(eb, sb, fp_op)
 
-    # float_to_float_test()
+    #float_to_float_test()
 
 if __name__ == "__main__":
     main()
