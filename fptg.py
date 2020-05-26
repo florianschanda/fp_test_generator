@@ -535,7 +535,7 @@ def float_to_float_test():
             # Decide on filename
             prefix = os.path.join("fptg_testsuite",
                                   "tests",
-                                  p_vec.vec[1],
+                                  p_vec.vec[0],
                                   "to_fp")
 
             filename = "to_%s_%s_%s.smt2" % (p_vec.vec[1],
