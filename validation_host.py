@@ -26,7 +26,7 @@
 import os
 import subprocess
 
-from mpf.floats import MPF, RM_RNE, fp_max
+from mpf.floats import *
 from mpf.rationals import Rational
 
 import validation
@@ -74,7 +74,6 @@ def call_validator(fp_op, args, rm=None):
                          executable=get_binary_name(fp_op, args[0]),
                          stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
                          encoding="utf-8")
     if rm:
         in_str = rm + "\n"
@@ -84,7 +83,7 @@ def call_validator(fp_op, args, rm=None):
     for arg in args:
         in_str += to_bits(arg) + "\n"
 
-    stdout, stderr = p.communicate(in_str)
+    stdout, _ = p.communicate(in_str)
 
     if p.returncode != 0:
         raise validation.Unsupported("calling validator failed")
@@ -136,12 +135,23 @@ def host_roundToIntegral(rm, a):
     return call_validator("fp.roundToIntegral", [a], rm)
 
 def sanity_test():
-    x = MPF(8, 24, 4286578688)
-    y = MPF(8, 24, 2142026366)
-    print(x)
-    print(y)
-    print(host_fma(RM_RNE, x, y, x))
-    print(fp_max(x, y))
+    # x = MPF(8, 24, 4286578688)
+    # y = MPF(8, 24, 2142026366)
+    # print("x:", x)
+    # print("y:", y)
+    # print(host_fma(RM_RNE, x, y, x))
+    # print(fp_max(x, y))
+
+    x = MPF(11, 53)
+    x.from_rational(RM_RNE, Rational(1))
+
+    y = MPF(11, 53)
+    y.from_rational(RM_RNE, Rational(3, 2))
+
+    print("x:", x)
+    print("y:", y)
+    print(host_add(RM_RNE, x, y))
+    print(fp_add(RM_RNE, x, y))
 
 
 if __name__ == "__main__":

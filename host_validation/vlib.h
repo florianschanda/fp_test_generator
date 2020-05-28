@@ -31,7 +31,9 @@ enum rounding_mode parse_rm();
 void set_rm(enum rounding_mode rm);
 
 float parse_float();
+double parse_double();
 
 void print_float(float f);
+void print_double(double f);
 
 #endif

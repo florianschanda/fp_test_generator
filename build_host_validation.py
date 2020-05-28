@@ -109,7 +109,7 @@ def build_validator(precision, fp_op):
     os.system("make -C host_validation %s" % name)
 
 def main():
-    for prec in (32,):
+    for prec in (32, 64):
         for op in simple_op:
             build_validator(prec, op)
         for op in special_op:

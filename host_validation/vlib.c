@@ -72,20 +72,21 @@ void set_rm(enum rounding_mode rm)
   }
 }
 
-int read_bit(uint32_t bv, int bit)
+int read_bit32(uint32_t bv, int bit)
 {
   return (bv & (1 << bit)) > 0;
 }
 
-void set_bit(uint32_t *bv, int bit)
+int read_bit64(uint64_t bv, int bit)
 {
-  *bv = *bv | (1 << bit);
+  return (bv & ((uint64_t)1 << (uint64_t)bit)) > 0;
 }
 
 float parse_float()
 {
   char *bin;
   uint32_t bv = 0;
+  float rv;
   scanf("%ms\n", &bin);
 
   if (strlen(bin) != 32) {
@@ -94,8 +95,9 @@ float parse_float()
   }
 
   for (int i=0; i<32; ++i) {
+    bv = bv << 1;
     if (bin[i] == '1') {
-      set_bit(&bv, 31 - i);
+      bv |= 1;
     } else if (bin[i] == '0') {
       // Do nothing
     } else {
@@ -113,15 +115,68 @@ float parse_float()
   fprintf(stderr, "parsed: %f\n", *((float*)(&bv)));
   */
 
-  return *((float*)(&bv));
+  memcpy(&rv, &bv, 4);
+  return rv;
+}
+
+double parse_double()
+{
+  char *bin;
+  uint64_t bv = 0;
+  double rv;
+  scanf("%ms\n", &bin);
+
+  if (strlen(bin) != 64) {
+    printf("expected 64 binary digits, got %lu\n", strlen(bin));
+    exit(1);
+  }
+
+  for (int i=0; i<64; ++i) {
+    bv = bv << 1;
+    if (bin[i] == '1') {
+      bv |= 1;
+    } else if (bin[i] == '0') {
+      // Do nothing
+    } else {
+      printf("parse error at digit %u: not 0 or 1\n", i + 1);
+      exit(1);
+    }
+  }
+
+  /* fprintf(stderr, "read: %s\n", bin); */
+  /* fprintf(stderr, "parsed: "); */
+  /* for (int i=0; i<64; ++i) { */
+  /*   fprintf(stderr, "%u", read_bit64(bv, 63 - i)); */
+  /* } */
+  /* fprintf(stderr, "\n"); */
+  /* fprintf(stderr, "parsed: %f\n", *((double*)(&bv))); */
+
+  memcpy(&rv, &bv, 8);
+  return rv;
 }
 
 void print_float(float f)
 {
-  uint32_t bv = *((uint32_t*)(&f));
+  uint32_t bv;
+  uint64_t mask = 0x80000000;
+  memcpy(&bv, &f, 4);
   printf("result: ");
   for (int i=0; i<32; ++i) {
-    printf("%u", read_bit(bv, 31 - i));
+    printf("%c", (mask & bv) ? '1' : '0');
+    mask = mask >> 1;
+  }
+  printf("\n");
+}
+
+void print_double(double f)
+{
+  uint64_t bv;
+  uint64_t mask = 0x8000000000000000;
+  memcpy(&bv, &f, 8);
+  printf("result: ");
+  for (int i=0; i<64; ++i) {
+    printf("%c", (mask & bv) ? '1' : '0');
+    mask = mask >> 1;
   }
   printf("\n");
 }
