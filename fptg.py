@@ -156,7 +156,7 @@ precision_names = {3:  { 5  : "float8"},
                         24  : "float32"},
                    11: {53  : "float64"},
                    15: {64  : "x87_extended",
-                        115 : "float128"}
+                        113 : "float128"}
 }
 
 fp_test_points = {
