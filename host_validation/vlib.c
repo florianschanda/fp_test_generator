@@ -72,17 +72,7 @@ void set_rm(enum rounding_mode rm)
   }
 }
 
-int read_bit32(uint32_t bv, int bit)
-{
-  return (bv & (1 << bit)) > 0;
-}
-
-int read_bit64(uint64_t bv, int bit)
-{
-  return (bv & ((uint64_t)1 << (uint64_t)bit)) > 0;
-}
-
-float parse_float()
+float parse_float32()
 {
   char *bin;
   uint32_t bv = 0;
@@ -119,7 +109,7 @@ float parse_float()
   return rv;
 }
 
-double parse_double()
+double parse_float64()
 {
   char *bin;
   uint64_t bv = 0;
@@ -155,28 +145,72 @@ double parse_double()
   return rv;
 }
 
-void print_float(float f)
+__float128 parse_float128()
 {
-  uint32_t bv;
-  uint64_t mask = 0x80000000;
-  memcpy(&bv, &f, 4);
+  union {
+    uint64_t bv[2];
+    __float128 rv;
+  } data;
+  char *bin;
+  int idx;
+  scanf("%ms\n", &bin);
+
+  if (strlen(bin) != 128) {
+    printf("expected 128 binary digits, got %lu\n", strlen(bin));
+    exit(1);
+  }
+
+  data.bv[0] = 0;
+  data.bv[1] = 0;
+
+  for (int i=0; i<128; ++i) {
+    idx = i < 64;
+    data.bv[idx] = data.bv[idx] << 1;
+    if (bin[i] == '1') {
+      data.bv[idx] |= 1;
+    } else if (bin[i] == '0') {
+      // Do nothing
+    } else {
+      printf("parse error at digit %u: not 0 or 1\n", i + 1);
+      exit(1);
+    }
+  }
+
+  return data.rv;
+}
+
+void print_float32(float f)
+{
+  uint8_t bv[sizeof(float)];
+  memcpy(bv, &f, sizeof(float));
+
   printf("result: ");
-  for (int i=0; i<32; ++i) {
-    printf("%c", (mask & bv) ? '1' : '0');
-    mask = mask >> 1;
+  for (unsigned int i=0; i<sizeof(float); ++i) {
+    printf("%02x", bv[sizeof(float)-1-i]);
   }
   printf("\n");
 }
 
-void print_double(double f)
+void print_float64(double f)
 {
-  uint64_t bv;
-  uint64_t mask = 0x8000000000000000;
-  memcpy(&bv, &f, 8);
+  uint8_t bv[sizeof(double)];
+  memcpy(bv, &f, sizeof(double));
+
   printf("result: ");
-  for (int i=0; i<64; ++i) {
-    printf("%c", (mask & bv) ? '1' : '0');
-    mask = mask >> 1;
+  for (unsigned int i=0; i<sizeof(double); ++i) {
+    printf("%02x", bv[sizeof(double)-1-i]);
+  }
+  printf("\n");
+}
+
+void print_float128(__float128 f)
+{
+  uint8_t bv[sizeof(__float128)];
+  memcpy(bv, &f, sizeof(__float128));
+
+  printf("result: ");
+  for (unsigned int i=0; i<sizeof(__float128); ++i) {
+    printf("%02x", bv[sizeof(__float128)-1-i]);
   }
   printf("\n");
 }

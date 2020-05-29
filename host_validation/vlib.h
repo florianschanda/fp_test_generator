@@ -30,10 +30,12 @@ enum rounding_mode { RNE, RNA, RTP, RTN, RTZ };
 enum rounding_mode parse_rm();
 void set_rm(enum rounding_mode rm);
 
-float parse_float();
-double parse_double();
+float parse_float32();
+double parse_float64();
+__float128 parse_float128();
 
-void print_float(float f);
-void print_double(double f);
+void print_float32(float f);
+void print_float64(double f);
+void print_float128(__float128 f);
 
 #endif

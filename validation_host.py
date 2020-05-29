@@ -56,8 +56,11 @@ def get_binary_name(fp_op, arg):
         prec = 32
     elif arg.w == 11 and arg.p == 53:
         prec = 64
+    elif arg.w == 15 and arg.p == 113:
+        prec = 128
     else:
-        raise validation.Unsupported("only single and double work")
+        raise validation.Unsupported("only single, double, and long "
+                                     "double work")
 
     name = os.path.join("host_validation",
                         "%s.float%s.val" % (fp_op, prec))
@@ -90,9 +93,10 @@ def call_validator(fp_op, args, rm=None):
 
     assert stdout.startswith("result: ")
     bits = stdout.split(": ", 1)[1].strip()
+    # print(stdout)
 
     rv = args[0].new_mpf()
-    rv.bv = int(bits, 2)
+    rv.bv = int(bits, 16)
 
     return rv
 
@@ -135,23 +139,11 @@ def host_roundToIntegral(rm, a):
     return call_validator("fp.roundToIntegral", [a], rm)
 
 def sanity_test():
-    # x = MPF(8, 24, 4286578688)
-    # y = MPF(8, 24, 2142026366)
-    # print("x:", x)
-    # print("y:", y)
-    # print(host_fma(RM_RNE, x, y, x))
-    # print(fp_max(x, y))
-
-    x = MPF(11, 53)
-    x.from_rational(RM_RNE, Rational(1))
-
-    y = MPF(11, 53)
-    y.from_rational(RM_RNE, Rational(3, 2))
+    x = MPF(15, 113, 0x000064B559A3D7F756924E4FE681141C)
 
     print("x:", x)
-    print("y:", y)
-    print(host_add(RM_RNE, x, y))
-    print(fp_add(RM_RNE, x, y))
+    print(host_sqrt(RM_RNE, x))
+    print(fp_sqrt(RM_RNE, x))
 
 
 if __name__ == "__main__":
