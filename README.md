@@ -11,11 +11,17 @@ as opposed to performance. This was part of the verification argument of our
 [TACAS'2019](https://link.springer.com/chapter/10.1007/978-3-030-17462-0_5)
 paper.
 
+Since running this tool is quite slow, the generated benchmarks are
+available in [here](https://github.com/florianschanda/fptg_testsuite)
+as a convenience.
+
 We used this to find soundness and completness bugs in *all* floating
 point solvers we tried (that could understand SMT-LIB). For the FP
 solvers that do not support SMT-LIB we're pretty sure we could also
 find bugs but honestly we can't be bothered to support different
-formats other than SMT-LIB.
+formats other than SMT-LIB. We have even found bugs in gcc and
+[glibc](https://sourceware.org/bugzilla/show_bug.cgi?id=26045) using
+this approach.
 
 To make sure the expected status (SAT/UNSAT) of each test is correct
 we are independently checking against as many of the following as is
