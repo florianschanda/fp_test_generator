@@ -45,10 +45,36 @@ def get_cpuinfo():
 
 NAME = get_cpuinfo()
 
+def has_explicit_bit(f):
+    return f.k == 79
+
 def to_bits(f):
     bits = "{0:b}".format(f.bv)
     assert len(bits) <= f.k
     bits = "0" * (f.k - len(bits)) + bits
+    assert len(bits) == f.k
+
+    if has_explicit_bit(f):
+        # Float80 (x87_extended) does not have a hidden bit, so we
+        # need to add it. Its a bit weird, look at
+        # https://en.wikipedia.org/wiki/Extended_precision for the
+        # table on how the explicit bit should be set. It's not
+        # intuitive.
+        if f.isNormal():
+            hb = "1"
+        elif f.isSubnormal():
+            hb = "0"
+        elif f.isInfinite():
+            hb = "1"
+            # And not 0 as you might expect
+        elif f.isNaN():
+            hb = "1"
+        else:
+            hb = "0"
+        # print(bits[:16], "[%s]" % hb, bits[16:])
+        bits = bits[:16] + hb + bits[16:]
+        assert len(bits) == 80, "bits should be 80 now, not %u" % len(bits)
+
     return bits
 
 def get_binary_name(fp_op, arg):
@@ -56,11 +82,13 @@ def get_binary_name(fp_op, arg):
         prec = 32
     elif arg.w == 11 and arg.p == 53:
         prec = 64
+    elif arg.w == 15 and arg.p == 64:
+        prec = 80
     elif arg.w == 15 and arg.p == 113:
         prec = 128
     else:
-        raise validation.Unsupported("only single, double, and long "
-                                     "double work")
+        raise validation.Unsupported("only single, double, long "
+                                     "double, and __float128 work")
 
     name = os.path.join("host_validation",
                         "%s.float%s.val" % (fp_op, prec))
@@ -87,16 +115,24 @@ def call_validator(fp_op, args, rm=None):
         in_str += to_bits(arg) + "\n"
 
     stdout, _ = p.communicate(in_str)
+    # print(stdout)
 
     if p.returncode != 0:
         raise validation.Unsupported("calling validator failed")
 
     assert stdout.startswith("result: ")
     bits = stdout.split(": ", 1)[1].strip()
-    # print(stdout)
 
     rv = args[0].new_mpf()
-    rv.bv = int(bits, 16)
+
+    if has_explicit_bit(rv):
+        bits = "{0:b}".format(int(bits, 16))
+        bits = "0" * (80 - len(bits)) + bits
+        bits = bits[:16] + bits[17:]
+        rv.bv = int(bits, 2)
+
+    else:
+        rv.bv = int(bits, 16)
 
     return rv
 
@@ -139,12 +175,15 @@ def host_roundToIntegral(rm, a):
     return call_validator("fp.roundToIntegral", [a], rm)
 
 def sanity_test():
-    x = MPF(15, 113, 0x000064B559A3D7F756924E4FE681141C)
+    x = MPF(15, 64)
+    x.from_rational(RM_RNE, Rational(12345,100))
 
     print("x:", x)
-    print(host_sqrt(RM_RNE, x))
     print(fp_sqrt(RM_RNE, x))
+    print(host_sqrt(RM_RNE, x))
 
+    # host inf 7fff8000000000000000
+    # 0 111111111111111 1000000000000000000000000000000000000000000000000000000000000000
 
 if __name__ == "__main__":
     sanity_test()

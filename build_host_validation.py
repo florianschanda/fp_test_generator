@@ -63,13 +63,14 @@ special_op = {
 }
 
 def build_validator(precision, fp_op):
-    assert precision in (32, 64, 128)
+    assert precision in (32, 64, 80, 128)
     assert fp_op in attributes.op_attr
 
     attr = attributes.op_attr[fp_op]
     prec = "float%u" % precision
     c_prec = {32: "float",
               64: "double",
+              80: "long double",
               128: "__float128"}[precision]
     name = "%s.%s.val" % (fp_op, prec)
 
@@ -84,6 +85,9 @@ def build_validator(precision, fp_op):
         elif precision == 64:
             c_rti_rna = "round"
             c_rti     = "nearbyint"
+        elif precision == 80:
+            c_rti_rna = "roundl"
+            c_rti     = "nearbyintl"
         else:
             c_rti_rna = "roundq"
             c_rti     = "nearbyintq"
@@ -92,8 +96,10 @@ def build_validator(precision, fp_op):
 
     fd = open(os.path.join("host_validation", "%s.c" % name), "w")
 
-    fd.write("#include <math.h>\n")
-    fd.write("#include <quadmath.h>\n")
+    if precision < 128:
+        fd.write("#include <math.h>\n")
+    else:
+        fd.write("#include <quadmath.h>\n")
     fd.write("#include \"vlib.h\"\n")
 
     fd.write("int main() {\n")
@@ -124,15 +130,18 @@ def build_validator(precision, fp_op):
     fd.write("}\n")
     fd.close()
 
-    os.system("make -C host_validation %s" % name)
+    return name
 
 def main():
-    for prec in (32, 64, 128):
+    names = set()
+    for prec in (32, 64, 80):
         for op in simple_op:
-            build_validator(prec, op)
+            names.add(build_validator(prec, op))
         for op in special_op:
-            build_validator(prec, op)
-        build_validator(prec, "fp.roundToIntegral")
+            names.add(build_validator(prec, op))
+        names.add(build_validator(prec, "fp.roundToIntegral"))
+
+    os.system("make -j8 -C host_validation %s" % " ".join(names))
 
 if __name__ == "__main__":
     main()

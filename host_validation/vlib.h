@@ -32,10 +32,12 @@ void set_rm(enum rounding_mode rm);
 
 float parse_float32();
 double parse_float64();
+long double parse_float80();
 __float128 parse_float128();
 
 void print_float32(float f);
 void print_float64(double f);
+void print_float80(long double f);
 void print_float128(__float128 f);
 
 #endif

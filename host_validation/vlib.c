@@ -145,6 +145,47 @@ double parse_float64()
   return rv;
 }
 
+long double parse_float80()
+{
+  union {
+    uint64_t bv[2];
+    long double rv;
+  } data;
+  char *bin;
+  int idx;
+  scanf("%ms\n", &bin);
+
+  if (strlen(bin) != 80) {
+    printf("expected 80 binary digits, got %lu\n", strlen(bin));
+    exit(1);
+  }
+
+  data.bv[0] = 0;
+  data.bv[1] = 0;
+
+  for (int i=6*8; i<128; ++i) {
+    idx = i < 64;
+    data.bv[idx] = data.bv[idx] << 1;
+    if (bin[i-6*8] == '1') {
+      data.bv[idx] |= 1;
+    } else if (bin[i-6*8] == '0') {
+      // Do nothing
+    } else {
+      printf("parse error at digit %u: not 0 or 1\n", i + 1 - 6*8);
+      exit(1);
+    }
+  }
+
+  /*
+  fprintf(stderr, "string: %s\n", bin);
+  fprintf(stderr, "parsed hi: %016lx\n", data.bv[1]);
+  fprintf(stderr, "parsed lo: %016lx\n", data.bv[0]);
+  fprintf(stderr, "parsed flt: %Lf\n", data.rv);
+  */
+
+  return data.rv;
+}
+
 __float128 parse_float128()
 {
   union {
@@ -199,6 +240,18 @@ void print_float64(double f)
   printf("result: ");
   for (unsigned int i=0; i<sizeof(double); ++i) {
     printf("%02x", bv[sizeof(double)-1-i]);
+  }
+  printf("\n");
+}
+
+void print_float80(long double f)
+{
+  uint8_t bv[sizeof(long double)];
+  memcpy(bv, &f, sizeof(long double));
+
+  printf("result: ");
+  for (unsigned int i=6; i<sizeof(long double); ++i) {
+    printf("%02x", bv[sizeof(long double)-1-i]);
   }
   printf("\n");
 }

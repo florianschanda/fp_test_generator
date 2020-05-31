@@ -6,6 +6,10 @@ SSE_FLAGS=-msse2 -mfpmath=sse
 vlib.o: vlib.c vlib.h
 	$(CC) -c $(CFLAGS) $(SSE_FLAGS) vlib.c
 
+sizes: sizes.c vlib.o
+	$(CC) -c $(CFLAGS) $(SSE_FLAGS) sizes.c
+	$(CC) sizes.o vlib.o -o sizes -lm -lquadmath
+
 %.val: vlib.o %.val.c
 	$(CC) -c $(CFLAGS) $(SSE_FLAGS) $*.val.c
 	$(CC) $*.val.o vlib.o -o $*.val -lm -lquadmath
