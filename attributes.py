@@ -27,8 +27,11 @@ import mpf.floats
 import validation_mpfr
 import validation_host
 
+
 class FP_Attributes:
-    def __init__(self, arity, function, mpfr_fn=None, host_fn=None, rounding=True, returns="float"):
+    def __init__(self, arity, function,
+                 mpfr_fn=None, host_fn=None,
+                 rounding=True, returns="float"):
         assert isinstance(arity, int)
         assert arity >= 1
         assert callable(function)
@@ -42,9 +45,10 @@ class FP_Attributes:
         self.rounding      = rounding
         self.returns       = returns
 
+
 op_attr = {
     "fp.abs"  : FP_Attributes(1,
-                              lambda x: abs(x),
+                              abs,
                               validation_mpfr.mpfr_abs,
                               validation_host.host_abs,
                               rounding=False),

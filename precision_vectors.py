@@ -23,8 +23,76 @@
 ##                                                                          ##
 ##############################################################################
 
+from functools import partial
 
-class Unsupported(Exception):
-    def __init__(self, reason):
-        super().__init__()
-        self.reason = reason
+from core import Vector, precision_names
+
+
+def specific_precision(eb, sb, _):
+    return (eb, sb)
+
+
+def random_ordered_precision(rng):
+    eb = rng.random_int(3, 10)
+    sb = rng.random_int(eb + 1, eb + 7)
+    return (eb, sb)
+
+
+def random_symmetrical_precision(rng):
+    eb = rng.random_int(3, 7)
+    return (eb, eb)
+
+
+def random_weird_precision(rng):
+    eb = rng.random_int(5, 12)
+    sb = rng.random_int(3, eb - 1)
+    return (eb, sb)
+
+
+precision_test_points = {
+    precision_names[eb][sb]: partial(specific_precision, eb, sb)
+    for eb in precision_names
+    for sb in precision_names[eb]
+}
+precision_test_points["random_ordered"] = random_ordered_precision
+precision_test_points["random_symmetrical"] = random_symmetrical_precision
+precision_test_points["random_weird"] = random_weird_precision
+
+
+class Precision_Vector(Vector):
+    def __init__(self):
+        self.vec = []
+
+    def add_item(self, kind):
+        assert kind in precision_test_points
+        self.vec.append(kind)
+
+    def __str__(self):
+        return "Precision_Vector<%s>" % ", ".join(self.vec)
+
+    @classmethod
+    def generate(cls, size):
+        assert isinstance(size, int)
+        assert size >= 1
+
+        all_kinds = list(sorted(precision_test_points))
+        kinds = [0] * size
+
+        def increment(p):
+            if p == size:
+                return False
+
+            kinds[p] += 1
+            if kinds[p] == len(all_kinds):
+                kinds[p] = 0
+                return increment(p + 1)
+            else:
+                return True
+
+        while True:
+            vec = Precision_Vector()
+            for k in kinds:
+                vec.add_item(all_kinds[k])
+            yield vec
+            if not increment(0):
+                return

@@ -31,6 +31,7 @@ from mpf.rationals import Rational
 
 import validation
 
+
 def get_cpuinfo():
     info = {}
     with open("/proc/cpuinfo", "r") as fd:
@@ -43,10 +44,13 @@ def get_cpuinfo():
 
     return "Host (%s)" % info["model name"]
 
+
 NAME = get_cpuinfo()
+
 
 def has_explicit_bit(f):
     return f.k == 79
+
 
 def to_bits(f):
     bits = "{0:b}".format(f.bv)
@@ -77,6 +81,7 @@ def to_bits(f):
 
     return bits
 
+
 def get_binary_name(fp_op, arg):
     if arg.w == 8 and arg.p == 24:
         prec = 32
@@ -98,6 +103,7 @@ def get_binary_name(fp_op, arg):
 
     else:
         raise validation.Unsupported("no validation binary exists")
+
 
 def call_validator(fp_op, args, rm=None):
     assert len(args) >= 1
@@ -136,54 +142,65 @@ def call_validator(fp_op, args, rm=None):
 
     return rv
 
+
 def host_abs(a):
     return call_validator("fp.abs", [a])
+
 
 def host_neg(a):
     return call_validator("fp.neg", [a])
 
+
 def host_add(rm, a, b):
     return call_validator("fp.add", [a, b], rm)
+
 
 def host_sub(rm, a, b):
     return call_validator("fp.sub", [a, b], rm)
 
+
 def host_mul(rm, a, b):
     return call_validator("fp.mul", [a, b], rm)
+
 
 def host_div(rm, a, b):
     return call_validator("fp.div", [a, b], rm)
 
+
 def host_sqrt(rm, a):
     return call_validator("fp.sqrt", [a], rm)
+
 
 def host_fma(rm, a, b, c):
     return call_validator("fp.fma", [a, b, c], rm)
 
+
 def host_rem(a, b):
     return call_validator("fp.rem", [a, b])
+
 
 def host_min(a, b):
     raise validation.Unsupported("see issue #23")
     return call_validator("fp.min", [a, b])
 
+
 def host_max(a, b):
     raise validation.Unsupported("see issue #23")
     return call_validator("fp.max", [a, b])
 
+
 def host_roundToIntegral(rm, a):
     return call_validator("fp.roundToIntegral", [a], rm)
 
+
 def sanity_test():
     x = MPF(15, 64)
-    x.from_rational(RM_RNE, Rational(12345,100))
+    x.from_rational(RM_RNE, Rational(12345, 100))
 
     print("x:", x)
     print(fp_sqrt(RM_RNE, x))
     print(host_sqrt(RM_RNE, x))
 
-    # host inf 7fff8000000000000000
-    # 0 111111111111111 1000000000000000000000000000000000000000000000000000000000000000
 
 if __name__ == "__main__":
     sanity_test()

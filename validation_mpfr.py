@@ -25,12 +25,13 @@
 
 from math import log2
 
-import gmpy2
-
 from mpf.floats import MPF, RM_RNE, RM_RNA, RM_RTP, RM_RTN, RM_RTZ
 from mpf.rationals import Rational
 
+import gmpy2
+
 from validation import Unsupported
+
 
 NAME = "%s (via gmpy2 %s)" % (gmpy2.mpfr_version(),
                               gmpy2.version())
@@ -44,6 +45,7 @@ MPF_TO_MPFR_RM = {RM_RNE : gmpy2.RoundToNearest,
 # You might be tempted to assume RM_RNA is RoundAwayZero, but this is
 # not correct. That rounding mode is really the inverse of
 # RoundToZero, i.e. it always does this and not just at half-points.
+
 
 def mpf_to_mpfr(f):
     assert isinstance(f, MPF)
@@ -109,8 +111,8 @@ def mpfr_to_mpf(f):
 def mpfr_context(a, rm=None):
     assert isinstance(a, MPF)
 
-    mpfr_precision = a.p
-    mpfr_emax = a.emax + 1
+    # mpfr_precision = a.p
+    # mpfr_emax = a.emax + 1
     mpfr_emin = a.emin - a.p + 2
 
     if mpfr_emin == 0:
@@ -120,19 +122,21 @@ def mpfr_context(a, rm=None):
     # This is a good place to start from, but we'll overwrite most of
     # the fun stuff.
 
-    ctx.precision=a.p
-    ctx.emax=a.emax + 1
-    ctx.emin=a.emin - a.p + 2
+    ctx.precision = a.p
+    ctx.emax      = a.emax + 1
+    ctx.emin      = a.emin - a.p + 2
 
     if rm is not None:
-        ctx.round=MPF_TO_MPFR_RM[rm]
+        ctx.round = MPF_TO_MPFR_RM[rm]
 
     return ctx
+
 
 def check_rm(rm):
     if rm is not None:
         if rm not in MPF_TO_MPFR_RM:
             raise Unsupported("rounding mode %s not supported" % rm)
+
 
 def mpfr_abs(a):
     assert isinstance(a, MPF)
